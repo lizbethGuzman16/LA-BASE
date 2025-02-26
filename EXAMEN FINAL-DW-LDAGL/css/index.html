@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario de Pedidos - Restaurante</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        form {
+            background-color: #f2f2f2;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        label {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        .remove-btn {
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .remove-btn:hover {
+            background-color: darkred;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Formulario de Pedido</h1>
+
+    <form id="orderForm">
+        <label for="waiter">Mesero:</label>
+        <select id="waiter" name="waiter" required>
+            <option value="Juan">RAFAELA</option>
+            <option value="Ana">MARIANA</option>
+            <option value="Carlos">FRANK</option>
+            <option value="Lucía">Lucía</option>
+        </select>
+
+        <label for="number">Numero de Mesa:</label>
+        <input type="number" id="number" name="number" required min="1" oninput="validateTableNumber(this)">
+
+
+        <label for="paymentMethod">Método de Pago:</label>
+        <select id="paymentMethod" name="paymentMethod" required>
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Transferencia">Yape</option>
+        </select>
+
+        <label for="product">Producto:</label>
+        <select id="product" name="product" required>
+            <!-- Los productos y precios se agregarán dinámicamente -->
+        </select>
+
+        <label for="quantity">Cantidad:</label>
+        <input type="number" id="quantity" name="quantity" required min="1">
+
+        <button type="button" onclick="addProduct()">Agregar Producto</button>
+
+        <h2>Lista del Pedido</h2>
+        <table id="orderTable">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio</th>
+                    <th>Eliminar</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Los productos agregados se mostrarán aquí -->
+            </tbody>
+        </table>
+
+        <label for="specialRequests">Pedidos Especiales (opcional):</label>
+        <textarea id="specialRequests" name="specialRequests"></textarea>
+
+        <button type="submit" id="submitOrder" disabled>Realizar Pedido</button>
+
+    </form>
+
+    <h2>Reporte Diario de Ventas</h2>
+    <button onclick="generateReport()">Generar Reporte Diario</button>
+
+    <div id="reportSection" style="display:none;">
+        <h3>Reporte de Ventas del Día</h3>
+        <table id="reportTable">
+            <thead>
+                <tr>
+                    <th>Mesero</th>
+                    <th>Numero de Mesa</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- El reporte se mostrará aquí -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Variables globales
+        let products = [];
+        let salesReport = [];
+
+        // Cargar los productos desde Google Sheets
+        const SPREADSHEET_ID = '13X1rWI9EtM4xSX-dxkROsGvT2_E-tL0HWz3EqRblQ0Q'; // Reemplaza con el ID de tu hoja de cálculo
+        const API_KEY = 'AIzaSyBwlrvxqMnL0Asbzb-1uxlgh6bPwQA8Ugk'; // Reemplaza con tu clave API de Google
+        const SHEET_NAME = '1Uw84vZIJLccbg6t2Yt393gTNU6FqH8RpSBb5ktx43Jw'; // Nombre de la hoja para guardar pedidos
+
+        // Función para obtener los datos de la hoja de Google
+        async function fetchProductsFromGoogleSheet() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/A2:Z?key=${API_KEY}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log(data);  // Verifica la respuesta de la API
+                products = data.values.map(value => ({
+                    name: value[0],
+                    price: parseFloat(value[1])
+                }));
+                populateProducts(); // Llenar el select de productos
+            } catch (error) {
+                console.error('Error fetching products:', error);  // Arreglo del error
+            }
+        }
+
+        // Función para llenar el select de productos
+        function populateProducts() {
+            const productSelect = document.getElementById('product');
+            products.forEach((product) => {
+                const option = document.createElement('option');
+                option.value = product.name;
+                option.textContent = `${product.name} - $${product.price.toFixed(2)}`;
+                productSelect.appendChild(option);
+            });
+        }
+
+        // Llamar la función para llenar los productos al cargar la página
+        window.onload = fetchProductsFromGoogleSheet;
+
+        // Función para agregar productos al pedido
+        function addProduct() {
+            const productSelect = document.getElementById('product');
+            const quantityInput = document.getElementById('quantity');
+            const productName = productSelect.value;
+            const productPrice = products.find(p => p.name === productName).price;
+            const quantity = parseInt(quantityInput.value);
+
+            if (quantity > 0) {
+                const orderTable = document.getElementById('orderTable').getElementsByTagName('tbody')[0];
+                const newRow = orderTable.insertRow();
+
+                const cellProduct = newRow.insertCell(0);
+                const cellQuantity = newRow.insertCell(1);
+                const cellPrice = newRow.insertCell(2);
+                const cellRemove = newRow.insertCell(3);
+
+                cellProduct.textContent = productName;
+                cellQuantity.textContent = quantity;
+                cellPrice.textContent = `$${(productPrice * quantity).toFixed(2)}`;
+
+                // Botón para eliminar el producto del pedido
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Eliminar';
+                removeButton.className = 'remove-btn';
+                removeButton.onclick = function () {
+                    orderTable.deleteRow(newRow.rowIndex - 1);
+                };
+                cellRemove.appendChild(removeButton);
+
+                // Limpiar los campos después de agregar el producto
+                productSelect.value = '';
+                quantityInput.value = '';
+            } else {
+                alert("Por favor, ingrese una cantidad válida.");
+            }
+        }
+
+        // Función para enviar el pedido y agregar al reporte de ventas
+        document.getElementById('orderForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const waiter = document.getElementById('waiter').value;
+            const tableNumber = document.getElementById('number').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const orderData = [];
+            const rows = document.getElementById('orderTable').getElementsByTagName('tbody')[0].rows;
+
+            if (rows.length === 0) {
+                alert("Debe agregar al menos un producto antes de realizar el pedido.");
+                return;
+            }
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const product = row.cells[0].textContent;
+                const quantity = row.cells[1].textContent;
+                const price = row.cells[2].textContent;
+
+                orderData.push({ product, quantity, price });
+            }
+
+            await saveOrderToGoogleSheet(waiter, tableNumber, paymentMethod, orderData);
+
+            alert("Pedido realizado correctamente!");
+            document.getElementById('orderForm').reset();
+            document.getElementById('orderTable').getElementsByTagName('tbody')[0].innerHTML = '';
+        });
+
+        // Guardar el pedido en Google Sheets
+        async function saveOrderToGoogleSheet(waiter, tableNumber, paymentMethod, orderData) {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}!A:Z:append?valueInputOption=RAW&key=${API_KEY}`;
+
+            const values = orderData.map(item => [
+                new Date().toLocaleString(),
+                waiter,
+                tableNumber,
+                paymentMethod,
+                item.product,
+                item.quantity,
+                item.price
+            ]);
+
+            const body = { values };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+                console.log('Pedido guardado en Google Sheets:', result);
+            } catch (error) {
+                console.error('Error al guardar el pedido:', error);
+                alert("Hubo un error al guardar el pedido.");
+            }
+        }
+
+
+        // Función para generar el reporte diario de ventas
+        function generateReport() {
+            const reportTable = document.getElementById('reportTable').getElementsByTagName('tbody')[0];
+            reportTable.innerHTML = ''; // Limpiar el reporte previo
+
+            salesReport.forEach((sale) => {
+                const row = reportTable.insertRow();
+                const cellWaiter = row.insertCell(0);
+                const cellProduct = row.insertCell(1);
+                const cellQuantity = row.insertCell(2);
+                const cellTotal = row.insertCell(3);
+
+                cellWaiter.textContent = sale.waiter;
+                cellProduct.textContent = sale.product;
+                cellQuantity.textContent = sale.quantity;
+                cellTotal.textContent = `$${sale.total.toFixed(2)}`;
+            });
+
+            document.getElementById('reportSection').style.display = 'block'; // Mostrar el reporte
+        }
+        // Función para actualizar el estado del botón "Realizar Pedido"
+        function updateSubmitButtonState() {
+            const orderTable = document.getElementById('orderTable').getElementsByTagName('tbody')[0];
+            const submitButton = document.getElementById('submitOrder');
+
+            // Habilitar solo si hay productos en la lista
+            submitButton.disabled = orderTable.rows.length === 0;
+        }
+
+        // Modifica la función para agregar productos
+        function addProduct() {
+            const productSelect = document.getElementById('product');
+            const quantityInput = document.getElementById('quantity');
+            const productName = productSelect.value;
+            const productPrice = products.find(p => p.name === productName).price;
+            const quantity = parseInt(quantityInput.value);
+
+            if (quantity > 0) {
+                const orderTable = document.getElementById('orderTable').getElementsByTagName('tbody')[0];
+                const newRow = orderTable.insertRow();
+
+                const cellProduct = newRow.insertCell(0);
+                const cellQuantity = newRow.insertCell(1);
+                const cellPrice = newRow.insertCell(2);
+                const cellRemove = newRow.insertCell(3);
+
+                cellProduct.textContent = productName;
+                cellQuantity.textContent = quantity;
+                cellPrice.textContent = `$${(productPrice * quantity).toFixed(2)}`;
+
+                // Botón para eliminar el producto
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Eliminar';
+                removeButton.className = 'remove-btn';
+                removeButton.onclick = function () {
+                    orderTable.deleteRow(newRow.rowIndex - 1);
+                    updateSubmitButtonState();
+                };
+                cellRemove.appendChild(removeButton);
+
+                // Limpiar los campos después de agregar el producto
+                productSelect.value = '';
+                quantityInput.value = '';
+
+                // Verificar si debe habilitarse el botón
+                updateSubmitButtonState();
+            } else {
+                alert("Por favor, ingrese una cantidad válida.");
+            }
+        }
+
+        // Llamar esta función también cuando se eliminen productos
+        document.getElementById('orderForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            updateSubmitButtonState();
+        });
+    
+        function validateTableNumber(input) {
+      if (!input.value || input.value < 1) {
+            input.value = 1; // Asegura que el número sea mínimo 1
+      }
+  }
+
+
+
+    </script>
+
+</body>
+
+</html>
